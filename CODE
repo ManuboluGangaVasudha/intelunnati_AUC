@@ -1,0 +1,155 @@
+import seaborn as sns
+import matplotlib.pylab as plt
+import numpy as np
+import pandas as pd
+%matplotlib inline
+
+df=pd.read_csv('/content/train.csv')
+df.head(5)
+
+df.info()
+
+tdf= df[df['sc_w'] != 0]
+tdf.shape
+
+sns.set()
+price_plot=tdf['price_range'].value_counts().plot(kind='bar')
+plt.xlabel('price_range')
+plt.ylabel('Count')
+plt.show()
+
+tdf.iloc[:, :-1].describe().T.sort_values(by='std', ascending = False)\
+                          .style.background_gradient(cmap="Greens")\
+                          .bar(subset=["max"], color='#F8766D')\
+                          .bar(subset=["mean"], color='#00BFC4')
+
+# Number of uniqe elements in each columns
+unique = tdf.nunique()
+unique.to_frame().T
+
+below= tdf["px_height"][tdf["px_height"] < 65]
+n= len(below)
+print("Number of values below 65 pixels in 'px_height' feature: ", n)
+
+tdf.px_height.describe()
+
+sns.set(rc={'figure.figsize':(5,5)})
+ax=sns.displot(data=tdf["m_dep"])
+plt.show()
+
+X=tdf.drop(['price_range'], axis=1)
+y=tdf['price_range']
+#missing values
+X.isna().any()
+
+plt.figure(figsize=(22,4))
+sns.heatmap((tdf.isna().sum()).to_frame(name='').T,cmap='GnBu', annot=True,
+             fmt='0.0f').set_title('Count missing values (train data)', fontsize=18)
+plt.show()
+
+#Exploratory Data Analysis (EDA)
+T= 'price_range'
+F= [col for col in tdf.columns if col not in ['tdf', T]]
+
+cat_features = [col for col in F if tdf[col].nunique() < 25]
+cont_features = [col for col in F if tdf[col].nunique() >= 25]
+
+num_cat_features = len(cat_features)
+num_cont_features = len(cont_features)
+
+print(f"Total number of features except for the target: {len(FEATURES)}")
+print(f"\033[92mNumber of categorical (<25 Unique Values) features: {num_cat_Features}")
+print(f"\033[96mNumber of continuous features: {num_cont_features}")
+
+# Define labels and colors for the pie chart
+labels = ['Categorical (<25 Unique Values)', 'Continuous']
+colors = ['#bbddcb', '#cdddbb']
+
+plt.pie([num_cat_features, num_cont_features],
+        labels=labels,
+        colors=colors,
+        textprops={'fontsize': 13},
+        autopct='%1.1f%%')
+
+# Add a title to the plot
+plt.title('Distribution of Categorical and Continuous Features', fontsize=16)
+
+# Show the plot
+plt.show()
+
+#check for data balance
+value_counts= pd.value_counts(tdf['price_range'])
+
+# Define the label strings using f-strings
+label = [f'{"Very high" if i==0 else "High" if i==1 else "Medium" if i==2 else "Low"} cost' for i in range(len(value_counts))]
+
+# Define the colors for each pie slice
+colors = ['#4d9b68', '#538e8a', '#468e71', '#59ae8c']
+
+# Create a pie chart with percentage values formatted with a % sign and explode the slices
+fig, ax = plt.subplots()
+ax.pie(value_counts.values, autopct='%0.1f%%', explode=[0.1, 0.1, 0.1, 0.1], shadow=True, labels=label, colors=colors)
+
+# Set the title of the pie chart
+ax.set_title('Balanced or Imbalanced?')
+
+# Show the pie chart
+plt.show()
+
+#building random forest model
+from sklearn.ensemble import RandomForestClassifier
+rfc=RandomForestClassifier(bootstrap= True,
+                           max_depth= 7,
+                           max_features= 15,
+                           min_samples_leaf= 3,
+                           min_samples_split= 10,
+                           n_estimators= 200,
+                           random_state=7)
+
+#train test split of data
+from sklearn.model_selection import train_test_split
+X_train, X_valid, y_train, y_valid= train_test_split(X, y, test_size=0.2, random_state=7)
+
+#confusion matrix
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+def my_confusion_matrix(y_test, y_pred, plt_title):
+    cm=confusion_matrix(y_test, y_pred)
+    print(classification_report(y_test, y_pred))
+    sns.heatmap(cm, annot=True, fmt='g', cbar=False, cmap='Greens')
+    plt.xlabel('Predicted Values')
+    plt.ylabel('Actual Values')
+    plt.title(plt_title)
+    plt.show()
+    return cm
+
+#using raandom forest model to our train and test data
+rfc.fit(X_train, y_train)
+y_pred_rfc=rfc.predict(X_valid)
+
+print('Random Forest Classifier Accuracy Score: ',accuracy_score(y_valid,y_pred_rfc))
+cm_rfc=my_confusion_matrix(y_valid, y_pred_rfc, 'Random Forest Confusion Matrix')
+
+# using Guassian Naive Bayes model
+from sklearn.naive_bayes import GaussianNB
+gnb = GaussianNB()
+gnb.fit(X_train, y_train)
+y_pred_gnb=gnb.predict(X_valid)
+
+print('Gaussian NB Classifier Accuracy Score: ',accuracy_score(y_valid,y_pred_gnb))
+cm_rfc=my_confusion_matrix(y_valid, y_pred_gnb, 'Gaussian NB Confusion Matrix')
+
+#using KNN classifier
+from sklearn.neighbors import KNeighborsClassifier
+knn = KNeighborsClassifier(n_neighbors=3,leaf_size=25)
+knn.fit(X_train, y_train)
+y_pred_knn=knn.predict(X_valid)
+print('KNN Classifier Accuracy Score: ',accuracy_score(y_valid,y_pred_knn))
+cm_rfc=my_confusion_matrix(y_valid, y_pred_knn, 'KNN Confusion Matrix')
+
+#using SVM classifier
+from sklearn import svm
+svm_clf = svm.SVC(decision_function_shape='ovo')
+svm_clf.fit(X_train, y_train)
+y_pred_svm=svm_clf.predict(X_valid)
+print('SVM Classifier Accuracy Score: ',accuracy_score(y_valid,y_pred_svm))
+cm_rfc=my_confusion_matrix(y_valid, y_pred_svm, 'SVM Confusion Matrix')
